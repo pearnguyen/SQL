@@ -1,0 +1,76 @@
+/*
+
+- Lọc Big10 States có doanh thu tốt nhất
+- Xem top 50 đơn hàng có doanh thu cao nhất của ngàng hàng Gadget được giao đến bang Colorado.
+- Purchasing Specialist tại chi nhánh bang Alabama cần báo cáo tổng doanh thu, tổng doanh số của từng sản phẩm được bán tại bang
+- danh sách top 20 sản phẩm mang lại nhiều doanh thu nhất tại bang Montana
+
+
+*/
+
+With 
+state_segment_by_sales AS ( SELECT 
+                                    customer.customer_state
+                                    , SUM(sales.net_sales)
+                                    , CASE 
+                                        WHEN RANK() OVER (ORDER BY SUM(sales.net_sales) DESC) <= 10 THEN 'Big 10'
+                                        ELSE 'Others'
+                                        END state_segment_by_sales
+                            FROM sales
+                            LEFT JOIN customer USING (customer_id)
+                            GROUP BY customer.customer_state)
+    -- select * from state_segment_by_sales where state_segment_by_sales ='Big 10'   
+    
+, Top_50_sales_id_Gadget_Colorado AS (
+                                        SELECT * FROM (
+                                                        SELECT 
+                                                            sales.sales_id
+                                                            , sales.net_sales
+                                                            , RANK() OVER (ORDER BY sales.net_sales DESC) AS rank_net_sales
+                                                        FROM sales
+                                                            LEFT JOIN product ON product.product_id = sales.product_id
+                                                            LEFT JOIN customer ON customer.customer_id = sales.customer_id
+                                                        
+                                                        WHERE product.category = 'Gadget'
+                                                                AND customer.customer_state = 'CO' 
+                                                    ) AS T1
+                                                    WHERE rank_net_sales<=50)
+--   select * from Top_50_sales_id_Gadget_Colorado
+    , Alabama_sales AS (
+                         SELECT 
+                                sales.product_id
+                                , product.product_name
+                                , SUM(sales.net_sales) AS net_sales
+                                , SUM(quantity) AS quantity
+                        FROM sales
+                        LEFT JOIN customer USING (customer_id)
+                        LEFT JOIN product ON sales.product_id = product.product_id
+                        WHERE customer.customer_state = 'AL'
+                        GROUP BY sales.product_id, product.product_name
+                        ORDER BY sales.product_id,product.product_name ) 
+   --   select * from Alabama_sales
+         
+    , Montana_sales AS (
+                        SELECT 
+                                sales.sales_id
+                                ,sales.net_sales
+                                , customer.customer_state
+                                , product.product_id
+                                ,product.product_name
+                            FROM sales
+                                LEFT JOIN customer ON customer.customer_id = sales.customer_id
+                                LEFT JOIN product ON product.product_id = sales.product_id
+                            WHERE customer.customer_state = 'MT')
+                        
+    , Montana_sales_rank_by_product AS
+                                    (SELECT product_id
+                                            , product_name
+                                            , SUM(net_sales) AS sum_net_sales
+                                            , RANK() OVER (ORDER BY SUM(net_sales) DESC) AS rank_of_net_sales
+                                    FROM Montana_sales
+                                    GROUP BY product_id, product_name) 
+    
+    , Top_20_product_Montana AS (SELECT * FROM Montana_sales_rank_by_product WHERE rank_of_net_sales<=20)
+                       
+-- select * from Top_20_product_Montana
+
